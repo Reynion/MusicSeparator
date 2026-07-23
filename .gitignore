@@ -1,0 +1,10 @@
+demucs-env/
+__pycache__/
+*.pyc
+.env
+storage/
+uploads/
+outputs/
+cloudflared/
+.claude/
+*.log
