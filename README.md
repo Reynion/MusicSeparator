@@ -32,7 +32,9 @@ copy .env.example .env
 ```
 
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`: Supabase 프로젝트 설정 > API에서 확인
-- `SUPABASE_BUCKET`: 기본값 `separated-audio` (Supabase Storage에 해당 버킷을 미리 생성해둘 것)
+- `SUPABASE_BUCKET`: 기본값 `separated-audio` — 분리 결과(vocals/drums/bass/other) 저장용, public
+- `SUPABASE_UPLOAD_BUCKET`: 기본값 `stem-uploads` — Next.js가 올려주는 원본 파일을 받는 용도, public,
+  50MB 제한(Supabase 프로젝트 플랜의 전역 업로드 한도 때문에 이 이상은 프로젝트 설정을 먼저 올려야 함)
 - `API_KEY`: Cloudflare Tunnel로 외부에 노출되는 서버이므로, 임의의 값을 넣어 인증 없는 요청을 막는 것을 권장.
   설정하면 Next.js 쪽에서 모든 요청에 `X-API-Key` 헤더를 함께 보내야 함.
 
@@ -48,7 +50,10 @@ python run.py
 ```
 
 - `GET /health` — 서버 상태 확인
-- `POST /separate` — multipart/form-data로 `file`(mp3/wav/flac/ogg/m4a) 업로드, 헤더 `X-API-Key: <API_KEY>` 필요 → `{"job_id": "...", "status": "queued"}` 반환
+- `POST /separate` — JSON `{ "file_url": "https://.../stem-uploads/..." }`, 헤더 `X-API-Key: <API_KEY>` 필요
+  → `{"job_id": "...", "status": "queued"}` 반환. 파일 자체를 요청 본문으로 안 받고 URL만 받아서 서버가 직접
+  다운로드한다 — Next.js API Route(Vercel Functions)는 요청 본문이 4.5MB로 제한돼 있어서 곡 파일을 그대로
+  중계할 수 없기 때문. 다운로드 성공 직후 `stem-uploads`의 원본은 바로 지운다.
 - `GET /status/{job_id}` — 처리 상태 조회. `status`는 `queued → processing → uploading → completed`(또는 `failed`) 순서로 바뀌며,
   `completed` 시 `urls`에 `vocals`/`drums`/`bass`/`other` Supabase Storage 공개 URL이 담김
 
@@ -75,7 +80,24 @@ insert into public.demucs_server (id, url) values (1, '') on conflict (id) do no
 alter table public.demucs_server enable row level security;
 ```
 
+`stem-uploads` 버킷(원본 업로드용)은 로그인한 사용자만 올릴 수 있게 RLS를 걸어둔다:
+
+```sql
+create policy "authenticated users can upload to stem-uploads"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'stem-uploads');
+
+create policy "authenticated users can overwrite their stem-uploads"
+on storage.objects for update
+to authenticated
+using (bucket_id = 'stem-uploads');
+```
+
 ## 참고
 
 - 3~5분짜리 곡 기준 CPU 처리 시간 약 3~5분
 - 처리 완료/실패 후 로컬 업로드 파일과 Demucs 산출물은 자동 삭제됨(Supabase Storage에만 보관)
+- Supabase Storage 정리: `stem-uploads`(원본)는 다운로드 직후 즉시 삭제, `separated-audio`(결과)는
+  업로드 후 7일 지나면 자동 삭제됨(서버 시작 시 한 번 + 이후 24시간마다 정리 스레드가 돎).
+  보관 기간은 `main.py`의 `UPLOAD_RETENTION_DAYS`/`RESULT_RETENTION_DAYS`로 조절 가능.

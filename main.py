@@ -4,16 +4,21 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from urllib.parse import urlparse
 
+import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from jobs import JobStatus, jobs
-from supabase_client import upload_stem
+from supabase_client import BUCKET, UPLOAD_BUCKET, cleanup_old_objects, delete_upload, upload_stem
 
 load_dotenv()
 
@@ -38,12 +43,38 @@ API_KEY = os.getenv("API_KEY")
 # 오히려 전체 처리 시간이 늘어나므로, 워커 1개로 작업을 순차 처리한다.
 executor = ThreadPoolExecutor(max_workers=1)
 
+# stem-uploads(원본)는 다운로드 즉시 지우지만, 혹시 놓친 게 있을 때를 대비한 안전망 겸
+# separated-audio(결과)는 사용자가 다운로드할 시간을 준 뒤 일정 기간 지나면 자동 정리한다.
+CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
+UPLOAD_RETENTION_DAYS = 1
+RESULT_RETENTION_DAYS = 7
+
 app = FastAPI(title="Demucs Separator Server")
+
+
+def cleanup_loop() -> None:
+    while True:
+        try:
+            n_uploads = cleanup_old_objects(UPLOAD_BUCKET, UPLOAD_RETENTION_DAYS)
+            n_results = cleanup_old_objects(BUCKET, RESULT_RETENTION_DAYS)
+            print(f"[cleanup] {UPLOAD_BUCKET} {n_uploads}개, {BUCKET} {n_results}개 삭제", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[cleanup] 실패: {exc}", flush=True)
+        time.sleep(CLEANUP_INTERVAL_SECONDS)
+
+
+@app.on_event("startup")
+def start_cleanup_thread() -> None:
+    threading.Thread(target=cleanup_loop, daemon=True).start()
 
 
 def verify_api_key(x_api_key: str | None) -> None:
     if API_KEY and x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="유효하지 않은 API 키입니다.")
+
+
+class SeparateRequest(BaseModel):
+    file_url: str
 
 
 @app.get("/health")
@@ -53,24 +84,36 @@ def health() -> dict:
 
 @app.post("/separate")
 async def separate(
-    file: UploadFile = File(...),
+    body: SeparateRequest,
     x_api_key: str | None = Header(default=None),
 ) -> dict:
     verify_api_key(x_api_key)
 
-    ext = Path(file.filename or "").suffix.lower()
+    url_path = Path(urlparse(body.file_url).path)
+    ext = url_path.suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="mp3, wav 파일만 업로드할 수 있습니다.")
+        raise HTTPException(status_code=400, detail="mp3, wav, flac, ogg, m4a 파일만 지원합니다.")
 
     job_id = uuid.uuid4().hex
     job_upload_dir = UPLOAD_DIR / job_id
     job_upload_dir.mkdir(parents=True, exist_ok=True)
     input_path = job_upload_dir / f"input{ext}"
 
-    with input_path.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+    try:
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+            resp = await client.get(body.file_url)
+            resp.raise_for_status()
+            input_path.write_bytes(resp.content)
+    except httpx.HTTPError as exc:
+        shutil.rmtree(job_upload_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail=f"파일 다운로드 실패: {exc}")
 
-    jobs.create(job_id, filename=file.filename or input_path.name)
+    try:
+        delete_upload(body.file_url)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[separate] stem-uploads 원본 삭제 실패(무시하고 계속 진행): {exc}", flush=True)
+
+    jobs.create(job_id, filename=url_path.name or input_path.name)
     executor.submit(process_job, job_id, input_path)
 
     return {"job_id": job_id, "status": JobStatus.QUEUED.value}
