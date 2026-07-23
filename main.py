@@ -127,6 +127,31 @@ def status(job_id: str) -> dict:
     return job.to_dict()
 
 
+INSTRUMENTAL_SOURCE_STEMS = ("drums", "bass", "other")
+
+
+def build_instrumental(stem_dir: Path) -> Path | None:
+    """보컬을 뺀 나머지 stem들을 합쳐 반주(instrumental) 트랙을 만든다."""
+    inputs = [stem_dir / f"{s}.mp3" for s in INSTRUMENTAL_SOURCE_STEMS if (stem_dir / f"{s}.mp3").exists()]
+    if len(inputs) < 2:
+        return None
+
+    output_path = stem_dir / "instrumental.mp3"
+    cmd = ["ffmpeg", "-y"]
+    for p in inputs:
+        cmd += ["-i", str(p)]
+    cmd += [
+        "-filter_complex", f"amix=inputs={len(inputs)}:duration=longest:normalize=0",
+        "-b:a", "320k",
+        str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not output_path.exists():
+        print(f"[separate] 반주 트랙 생성 실패(무시하고 계속 진행): {result.stderr[-500:]}", flush=True)
+        return None
+    return output_path
+
+
 def process_job(job_id: str, input_path: Path) -> None:
     job_output_dir = OUTPUT_DIR / job_id
     try:
@@ -153,6 +178,13 @@ def process_job(job_id: str, input_path: Path) -> None:
             stem_file = stem_dir / f"{stem}.mp3"
             if stem_file.exists():
                 urls[stem] = upload_stem(job_id, stem, stem_file)
+
+        try:
+            instrumental_path = build_instrumental(stem_dir)
+            if instrumental_path:
+                urls["instrumental"] = upload_stem(job_id, "instrumental", instrumental_path)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[separate] 반주 트랙 처리 실패(무시하고 계속 진행): {exc}", flush=True)
 
         if not urls:
             raise RuntimeError("분리된 결과 파일을 찾을 수 없습니다.")

@@ -55,7 +55,9 @@ python run.py
   다운로드한다 — Next.js API Route(Vercel Functions)는 요청 본문이 4.5MB로 제한돼 있어서 곡 파일을 그대로
   중계할 수 없기 때문. 다운로드 성공 직후 `stem-uploads`의 원본은 바로 지운다.
 - `GET /status/{job_id}` — 처리 상태 조회. `status`는 `queued → processing → uploading → completed`(또는 `failed`) 순서로 바뀌며,
-  `completed` 시 `urls`에 `vocals`/`drums`/`bass`/`other` Supabase Storage 공개 URL이 담김
+  `completed` 시 `urls`에 `vocals`/`drums`/`bass`/`other`/`instrumental` Supabase Storage 공개 URL(mp3, 320kbps)이 담김.
+  `instrumental`은 drums+bass+other를 ffmpeg `amix`로 합친 보컬 제외(반주) 트랙 — 재분리 없이 이미 나온 stem을
+  섞기만 하는 거라 추가 비용이 거의 없음. ffmpeg 실패 시에도 나머지 4개 stem은 정상 반환되고 `instrumental`만 빠짐.
 
 동시에 여러 곡을 요청해도 서버 내부에서 큐로 순차 처리한다(CPU 코어를 Demucs `-j 16`이 이미 최대로 쓰기 때문에
 동시 처리 시 오히려 전체 시간이 늘어남).
