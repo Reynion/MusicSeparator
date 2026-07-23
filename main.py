@@ -45,9 +45,10 @@ executor = ThreadPoolExecutor(max_workers=1)
 
 # stem-uploads(원본)는 다운로드 즉시 지우지만, 혹시 놓친 게 있을 때를 대비한 안전망 겸
 # separated-audio(결과)는 사용자가 다운로드할 시간을 준 뒤 일정 기간 지나면 자동 정리한다.
-CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
-UPLOAD_RETENTION_DAYS = 1
-RESULT_RETENTION_DAYS = 7
+# 결과는 다시 뽑으면 그만이라 보관 기간을 짧게 잡고, 그만큼 정리 주기도 촘촘하게 돈다.
+CLEANUP_INTERVAL_SECONDS = 15 * 60
+UPLOAD_RETENTION_HOURS = 24
+RESULT_RETENTION_HOURS = 1
 
 app = FastAPI(title="Demucs Separator Server")
 
@@ -55,8 +56,8 @@ app = FastAPI(title="Demucs Separator Server")
 def cleanup_loop() -> None:
     while True:
         try:
-            n_uploads = cleanup_old_objects(UPLOAD_BUCKET, UPLOAD_RETENTION_DAYS)
-            n_results = cleanup_old_objects(BUCKET, RESULT_RETENTION_DAYS)
+            n_uploads = cleanup_old_objects(UPLOAD_BUCKET, UPLOAD_RETENTION_HOURS / 24)
+            n_results = cleanup_old_objects(BUCKET, RESULT_RETENTION_HOURS / 24)
             print(f"[cleanup] {UPLOAD_BUCKET} {n_uploads}개, {BUCKET} {n_results}개 삭제", flush=True)
         except Exception as exc:  # noqa: BLE001
             print(f"[cleanup] 실패: {exc}", flush=True)

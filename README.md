@@ -101,5 +101,6 @@ using (bucket_id = 'stem-uploads');
 - 3~5분짜리 곡 기준 CPU 처리 시간 약 3~5분
 - 처리 완료/실패 후 로컬 업로드 파일과 Demucs 산출물은 자동 삭제됨(Supabase Storage에만 보관)
 - Supabase Storage 정리: `stem-uploads`(원본)는 다운로드 직후 즉시 삭제, `separated-audio`(결과)는
-  업로드 후 7일 지나면 자동 삭제됨(서버 시작 시 한 번 + 이후 24시간마다 정리 스레드가 돎).
-  보관 기간은 `main.py`의 `UPLOAD_RETENTION_DAYS`/`RESULT_RETENTION_DAYS`로 조절 가능.
+  업로드 후 1시간 지나면 자동 삭제됨(다시 뽑는 비용이 크지 않아 짧게 잡음). 서버 시작 시 한 번 +
+  이후 15분마다 정리 스레드가 돎. 보관 기간은 `main.py`의 `UPLOAD_RETENTION_HOURS`/`RESULT_RETENTION_HOURS`로,
+  정리 주기는 `CLEANUP_INTERVAL_SECONDS`로 조절 가능.
