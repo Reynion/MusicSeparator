@@ -137,6 +137,7 @@ def process_job(job_id: str, input_path: Path) -> None:
             "-n", DEMUCS_MODEL,
             "--device", "cpu",
             "-j", "16",
+            "--mp3", "--mp3-bitrate", "320",
             "-o", str(job_output_dir),
             str(input_path),
         ]
@@ -149,7 +150,7 @@ def process_job(job_id: str, input_path: Path) -> None:
         jobs.update(job_id, status=JobStatus.UPLOADING)
         urls: dict[str, str] = {}
         for stem in STEMS:
-            stem_file = stem_dir / f"{stem}.wav"
+            stem_file = stem_dir / f"{stem}.mp3"
             if stem_file.exists():
                 urls[stem] = upload_stem(job_id, stem, stem_file)
 

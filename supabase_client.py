@@ -32,12 +32,13 @@ def update_tunnel_url(url: str) -> None:
 
 def upload_stem(job_id: str, stem_name: str, file_path: Path) -> str:
     client = get_supabase()
-    storage_path = f"{job_id}/{stem_name}.wav"
+    storage_path = f"{job_id}/{stem_name}{file_path.suffix}"
+    content_type = "audio/mpeg" if file_path.suffix == ".mp3" else "audio/wav"
     data = file_path.read_bytes()
     client.storage.from_(BUCKET).upload(
         storage_path,
         data,
-        {"content-type": "audio/wav", "upsert": "true"},
+        {"content-type": content_type, "upsert": "true"},
     )
     return client.storage.from_(BUCKET).get_public_url(storage_path)
 
