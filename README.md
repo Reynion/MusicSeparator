@@ -100,6 +100,8 @@ using (bucket_id = 'stem-uploads');
 
 - 모델은 `htdemucs_ft`(4-모델 앙상블 파인튜닝, 품질 우선) 사용 중. `main.py`의 `DEMUCS_MODEL`을 `htdemucs`로
   바꾸면 품질은 약간 떨어지지만 약 4배 빠름.
+- `--overlap 0.5`(기본 0.25)로 구간 경계 이음새 아티팩트를 줄임. 처리해야 할 구간 수가 늘어나 조금 느려지지만
+  `--shifts`처럼 배수로 곱해지는 게 아니라 완만하게(대략 1.5배) 늘어나는 정도라 비용 대비 효과가 좋음.
 - 3~5분짜리 곡 기준 CPU 처리 시간 약 3~5분(`htdemucs` 기준. `htdemucs_ft`는 그보다 오래 걸림)
 - 처리 완료/실패 후 로컬 업로드 파일과 Demucs 산출물은 자동 삭제됨(Supabase Storage에만 보관)
 - Supabase Storage 정리: `stem-uploads`(원본)는 다운로드 직후 즉시 삭제, `separated-audio`(결과)는

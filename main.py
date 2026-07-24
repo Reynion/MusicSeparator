@@ -163,6 +163,7 @@ def process_job(job_id: str, input_path: Path) -> None:
             "-n", DEMUCS_MODEL,
             "--device", "cpu",
             "-j", "16",
+            "--overlap", "0.5",
             "--mp3", "--mp3-bitrate", "320",
             "-o", str(job_output_dir),
             str(input_path),
