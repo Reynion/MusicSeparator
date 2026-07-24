@@ -98,7 +98,9 @@ using (bucket_id = 'stem-uploads');
 
 ## 참고
 
-- 3~5분짜리 곡 기준 CPU 처리 시간 약 3~5분
+- 모델은 `htdemucs_ft`(4-모델 앙상블 파인튜닝, 품질 우선) 사용 중. `main.py`의 `DEMUCS_MODEL`을 `htdemucs`로
+  바꾸면 품질은 약간 떨어지지만 약 4배 빠름.
+- 3~5분짜리 곡 기준 CPU 처리 시간 약 3~5분(`htdemucs` 기준. `htdemucs_ft`는 그보다 오래 걸림)
 - 처리 완료/실패 후 로컬 업로드 파일과 Demucs 산출물은 자동 삭제됨(Supabase Storage에만 보관)
 - Supabase Storage 정리: `stem-uploads`(원본)는 다운로드 직후 즉시 삭제, `separated-audio`(결과)는
   업로드 후 1시간 지나면 자동 삭제됨(다시 뽑는 비용이 크지 않아 짧게 잡음). 서버 시작 시 한 번 +

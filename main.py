@@ -36,7 +36,7 @@ if FFMPEG_DIR:
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".m4a"}
 STEMS = ("vocals", "drums", "bass", "other")
-DEMUCS_MODEL = "htdemucs"
+DEMUCS_MODEL = "htdemucs_ft"
 API_KEY = os.getenv("API_KEY")
 
 # CPU 한 대에서 Demucs(-j 16)를 동시에 여러 개 돌리면 코어를 나눠 쓰게 되어
